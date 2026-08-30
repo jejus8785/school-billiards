@@ -9,7 +9,7 @@ except ImportError:
     psycopg = None
     dict_row = None
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='.', static_folder='.')
 app.secret_key = os.environ.get("SECRET_KEY", "local-development-secret-key")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ddyy1016")
 MAX_TEAMS = 2
