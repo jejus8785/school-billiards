@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>학교 당구장 예약 시스템</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <div class="eyebrow">STUDENT COUNCIL</div>
+    <h1>학교 당구장 예약 시스템</h1>
+    <p>원하는 날짜를 선택하여 당구장을 예약하세요.</p>
+  </div>
+  <nav>
+    <button class="nav-btn active" onclick="showView('bookingView', this)">당구장 예약</button>
+    <button class="nav-btn" onclick="showView('lookupView', this)">예약 조회</button>
+    <a class="nav-btn" href="/admin">관리자 모드</a>
+  </nav>
+</header>
+
+<main class="container">
+<section id="bookingView" class="view">
+  <div class="section-head">
+    <div>
+      <h2>예약 날짜 선택</h2>
+      <p>하루 최대 2팀까지 예약할 수 있습니다. 한 팀은 최대 4명입니다.</p>
+    </div>
+    <div class="legend">
+      <span><i class="dot available"></i>예약 가능</span>
+      <span><i class="dot one"></i>1팀 예약</span>
+      <span><i class="dot full"></i>예약 마감</span>
+    </div>
+  </div>
+
+  <div class="calendar-card">
+    <div class="calendar-header">
+      <button onclick="moveMonth(-1)" aria-label="이전 달">‹</button>
+      <h3 id="monthTitle"></h3>
+      <button onclick="moveMonth(1)" aria-label="다음 달">›</button>
+    </div>
+    <div class="weekdays">
+      <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+    </div>
+    <div id="calendar" class="calendar"></div>
+  </div>
+
+  <div id="selectedPanel" class="selected-panel hidden"></div>
+</section>
+
+<section id="lookupView" class="view hidden">
+  <div class="panel">
+    <h2>내 예약 조회</h2>
+    <p class="muted">본인의 학번을 입력하면 본인이 포함된 예약만 확인할 수 있습니다.</p>
+    <div class="inline-form">
+      <input id="lookupId" placeholder="학번 입력" maxlength="20">
+      <button class="primary" onclick="lookupBookings()">조회하기</button>
+    </div>
+    <div id="lookupResult"></div>
+  </div>
+</section>
+</main>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <button class="close" onclick="closeModal()">×</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

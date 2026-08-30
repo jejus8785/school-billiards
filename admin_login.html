@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>관리자 로그인</title><link rel="stylesheet" href="/static/style.css"></head>
+<body class="center-page">
+<div class="auth-card">
+  <div class="admin-icon">⚙</div>
+  <div class="eyebrow">ADMIN</div>
+  <h1>관리자 모드</h1>
+  <p class="muted">학생회 관리자만 이용할 수 있습니다.</p>
+  {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+  <form method="post">
+    <label>관리자 비밀번호</label>
+    <input type="password" name="password" placeholder="비밀번호 입력" autofocus required>
+    <button class="primary full" type="submit">관리자 로그인</button>
+  </form>
+  <a class="back-link" href="/">← 예약 화면으로</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>관리자 예약 관리</title><link rel="stylesheet" href="/static/style.css"></head>
+<body>
+<header class="topbar admin-top">
+  <div>
+    <div class="eyebrow">ADMINISTRATOR</div>
+    <h1>당구장 예약 관리</h1>
+    <p>전체 예약 현황을 확인하고 필요한 예약을 강제로 취소할 수 있습니다.</p>
+  </div>
+  <div class="admin-actions">
+    <a class="nav-btn" href="/">학생 화면</a>
+    <form method="post" action="/admin/logout"><button class="nav-btn" type="submit">로그아웃</button></form>
+  </div>
+</header>
+<main class="container">
+  <div class="stats">
+    <div class="stat"><span>전체 예약</span><strong id="total">0</strong></div>
+    <div class="stat"><span>예약된 날짜</span><strong id="days">0</strong></div>
+    <div class="stat"><span>예약 가능 팀 수</span><strong id="remaining">0</strong></div>
+  </div>
+  <div class="panel">
+    <div class="section-head">
+      <div><h2>예약 목록</h2><p class="muted">예약 취소는 되돌릴 수 없으므로 신중하게 처리하세요.</p></div>
+      <input id="adminSearch" class="search" placeholder="날짜·이름·학번 검색" oninput="renderAdmin()">
+    </div>
+    <div id="adminList"></div>
+  </div>
+</main>
+<script src="/static/admin.js"></script>
+</body>
+</html>
