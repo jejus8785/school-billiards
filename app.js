@@ -17,6 +17,12 @@ function maxTeamsForDate(key) {
   return 2;
 }
 
+// 주말(토, 일) 여부를 판별하는 함수 추가
+function isWeekend(d) {
+  const day = d.getDay();
+  return day === 0 || day === 6; // 0: 일요일, 6: 토요일
+}
+
 function iso(d) {
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
@@ -69,35 +75,31 @@ function renderCalendar() {
     const cell=document.createElement('button');
     cell.className='day';
 
-    if(d<today || d>maxDate){
+    let statusText;
+
+    // 주말이거나 기간 외 날짜일 경우 비활성화 처리
+    if(d<today || d>maxDate || isWeekend(d)){
       cell.disabled=true;
       cell.classList.add('disabled');
+      statusText = isWeekend(d) ? '주말 휴무' : '예약 불가';
     }
     else if(count>=maxTeams){
       cell.classList.add('full');
-    }
-    else if(count===1){
-      cell.classList.add('one');
-    }
-    else{
-      cell.classList.add('available');
-    }
-
-    let statusText;
-
-    if(count>=maxTeams){
       statusText='예약 마감';
     }
     else if(count===1){
+      cell.classList.add('one');
       statusText='1팀 예약';
     }
     else{
+      cell.classList.add('available');
       statusText='예약 가능';
     }
 
     cell.innerHTML=`<strong>${day}</strong><small>${statusText}</small>`;
 
-    if(d>=today && d<=maxDate && count<maxTeams){
+    // 주말이 아닐 때만 클릭하여 예약 창 오픈 가능
+    if(d>=today && d<=maxDate && !isWeekend(d) && count<maxTeams){
       cell.onclick=()=>openBooking(key);
     }
 
@@ -106,6 +108,14 @@ function renderCalendar() {
 }
 
 async function openBooking(key) {
+  // 클라이언트 측 한 번 더 주말 차단 방어
+  const [y, m, d] = key.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  if (isWeekend(dateObj)) {
+    alert('주말에는 예약할 수 없습니다.');
+    return;
+  }
+
   const r=await fetch('/api/bookings/'+key);
   const data=await r.json();
 
