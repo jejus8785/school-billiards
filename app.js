@@ -6,21 +6,35 @@ today.setHours(0,0,0,0);
 const maxDate = new Date(today);
 maxDate.setFullYear(maxDate.getFullYear() + 10);
 
+// 2026년 9월 7일 ~ 9월 11일은 하루 1팀만 예약 가능
+const specialStart = '2026-09-07';
+const specialEnd = '2026-09-11';
+
+function maxTeamsForDate(key) {
+  if (key >= specialStart && key <= specialEnd) {
+    return 1;
+  }
+  return 2;
+}
+
 function iso(d) {
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
+
 function showView(id, btn) {
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
 }
+
 async function loadCounts() {
   const r = await fetch('/api/calendar');
   counts = await r.json();
   renderCalendar();
 }
+
 function moveMonth(delta) {
   const next = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+delta, 1);
   const min = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -29,93 +43,217 @@ function moveMonth(delta) {
   currentMonth = next;
   renderCalendar();
 }
+
 function renderCalendar() {
   document.getElementById('monthTitle').textContent =
     `${currentMonth.getFullYear()}년 ${currentMonth.getMonth()+1}월`;
+
   const grid = document.getElementById('calendar');
   grid.innerHTML='';
+
   const first = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
   const last = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 0);
-  for(let i=0;i<first.getDay();i++) grid.appendChild(document.createElement('div'));
+
+  for(let i=0;i<first.getDay();i++) {
+    grid.appendChild(document.createElement('div'));
+  }
+
   for(let day=1;day<=last.getDate();day++){
     const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    const key=iso(d), count=counts[key]||0;
+    const key=iso(d);
+    const count=counts[key]||0;
+
+    // 해당 날짜의 최대 예약 팀 수
+    const maxTeams = maxTeamsForDate(key);
+
     const cell=document.createElement('button');
     cell.className='day';
-    if(d<today || d>maxDate){ cell.disabled=true; cell.classList.add('disabled'); }
-    else if(count>=2) cell.classList.add('full');
-    else if(count===1) cell.classList.add('one');
-    else cell.classList.add('available');
-    cell.innerHTML=`<strong>${day}</strong><small>${count>=2?'예약 마감':count===1?'1팀 예약':'예약 가능'}</small>`;
-    if(d>=today && d<=maxDate && count<2) cell.onclick=()=>openBooking(key);
+
+    if(d<today || d>maxDate){
+      cell.disabled=true;
+      cell.classList.add('disabled');
+    }
+    else if(count>=maxTeams){
+      cell.classList.add('full');
+    }
+    else if(count===1){
+      cell.classList.add('one');
+    }
+    else{
+      cell.classList.add('available');
+    }
+
+    let statusText;
+
+    if(count>=maxTeams){
+      statusText='예약 마감';
+    }
+    else if(count===1){
+      statusText='1팀 예약';
+    }
+    else{
+      statusText='예약 가능';
+    }
+
+    cell.innerHTML=`<strong>${day}</strong><small>${statusText}</small>`;
+
+    if(d>=today && d<=maxDate && count<maxTeams){
+      cell.onclick=()=>openBooking(key);
+    }
+
     grid.appendChild(cell);
   }
 }
+
 async function openBooking(key) {
   const r=await fetch('/api/bookings/'+key);
   const data=await r.json();
-  if(data.count>=2){ await loadCounts(); return; }
+
+  const maxTeams = maxTeamsForDate(key);
+
+  if(data.count>=maxTeams){
+    await loadCounts();
+    return;
+  }
+
   const title = `${key.slice(0,4)}년 ${Number(key.slice(5,7))}월 ${Number(key.slice(8,10))}일`;
-  const extra = [1,2,3].map(i=>`<input id="member${i}" inputmode="numeric" maxlength="20" placeholder="추가 학생 ${i} 학번 (선택)">`).join('');
+
+  const extra = [1,2,3].map(i=>
+    `<input id="member${i}" inputmode="numeric" maxlength="20" placeholder="추가 학생 ${i} 학번 (선택)">`
+  ).join('');
+
   document.getElementById('modalContent').innerHTML=`
     <div class="eyebrow">BOOKING</div>
     <h2>${title} 당구장 예약</h2>
-    <div class="availability-badge">현재 예약: ${data.count} / 2팀</div>
+    <div class="availability-badge">현재 예약: ${data.count} / ${maxTeams}팀</div>
     <form onsubmit="submitBooking(event,'${key}')">
       <label>예약자 이름 <span>*</span></label>
       <input id="name" required placeholder="예약자 이름">
+
       <label>예약자 학번 <span>*</span></label>
       <input id="studentId" required inputmode="numeric" maxlength="20" placeholder="예약자 학번">
+
       <label>함께 이용할 학생 학번</label>
       ${extra}
+
       <p class="form-help">예약자를 포함해 최대 4명까지 가능합니다.</p>
+
       <button class="primary full" type="submit">예약하기</button>
     </form>`;
+
   document.getElementById('modal').classList.remove('hidden');
 }
+
 async function submitBooking(e,key){
   e.preventDefault();
-  const members=[1,2,3].map(i=>document.getElementById('member'+i).value.trim()).filter(Boolean);
-  const ids=[document.getElementById('studentId').value.trim(),...members];
-  if(new Set(ids).size!==ids.length){ alert('같은 학번을 중복해서 입력할 수 없습니다.'); return; }
-  const r=await fetch('/api/book',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({date:key,name:document.getElementById('name').value.trim(),
-      student_id:document.getElementById('studentId').value.trim(),members})});
+
+  const members=[1,2,3]
+    .map(i=>document.getElementById('member'+i).value.trim())
+    .filter(Boolean);
+
+  const ids=[
+    document.getElementById('studentId').value.trim(),
+    ...members
+  ];
+
+  if(new Set(ids).size!==ids.length){
+    alert('같은 학번을 중복해서 입력할 수 없습니다.');
+    return;
+  }
+
+  const r=await fetch('/api/book',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      date:key,
+      name:document.getElementById('name').value.trim(),
+      student_id:document.getElementById('studentId').value.trim(),
+      members
+    })
+  });
+
   const data=await r.json();
-  if(!r.ok){ alert(data.error||'예약에 실패했습니다.'); await loadCounts(); return; }
+
+  if(!r.ok){
+    alert(data.error||'예약에 실패했습니다.');
+    await loadCounts();
+    return;
+  }
+
   closeModal();
   document.getElementById('modalContent').innerHTML='';
   showCompletion(data.booking);
   await loadCounts();
 }
+
 function showCompletion(b){
   document.getElementById('modalContent').innerHTML=`
     <div class="success-icon">✓</div>
     <div class="eyebrow">BOOKING COMPLETE</div>
     <h2>예약이 완료되었습니다.</h2>
+
     <div class="receipt">
       <div><span>예약 날짜</span><strong>${b.date}</strong></div>
       <div><span>예약 팀</span><strong>${b.team_no}팀</strong></div>
       <div><span>예약자</span><strong>${escapeHtml(b.name)} (${escapeHtml(b.student_id)})</strong></div>
       <div><span>함께 이용</span><strong>${b.members.map(escapeHtml).join(', ')}</strong></div>
     </div>
+
     <button class="primary full" onclick="closeModal()">확인</button>`;
+
   document.getElementById('modal').classList.remove('hidden');
 }
+
 async function lookupBookings(){
   const id=document.getElementById('lookupId').value.trim();
-  if(!id){ alert('학번을 입력해주세요.'); return; }
-  const r=await fetch('/api/lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:id})});
-  const data=await r.json(), box=document.getElementById('lookupResult');
-  if(!data.bookings?.length){ box.innerHTML='<div class="empty">해당 학번이 포함된 예약이 없습니다.</div>'; return; }
+
+  if(!id){
+    alert('학번을 입력해주세요.');
+    return;
+  }
+
+  const r=await fetch('/api/lookup',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({student_id:id})
+  });
+
+  const data=await r.json();
+  const box=document.getElementById('lookupResult');
+
+  if(!data.bookings?.length){
+    box.innerHTML='<div class="empty">해당 학번이 포함된 예약이 없습니다.</div>';
+    return;
+  }
+
   box.innerHTML=data.bookings.map(b=>`
     <div class="booking-card">
-      <div class="booking-main"><strong>${b.date}</strong><span>${b.team_no}팀</span></div>
+      <div class="booking-main">
+        <strong>${b.date}</strong>
+        <span>${b.team_no}팀</span>
+      </div>
       <div>예약자: ${escapeHtml(b.name)} (${escapeHtml(b.student_id)})</div>
       <div class="muted">함께 이용: ${b.members.map(escapeHtml).join(', ')}</div>
-    </div>`).join('');
+    </div>
+  `).join('');
 }
-function closeModal(){document.getElementById('modal').classList.add('hidden');}
-document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+
+function closeModal(){
+  document.getElementById('modal').classList.add('hidden');
+}
+
+document.getElementById('modal').addEventListener('click',e=>{
+  if(e.target.id==='modal') closeModal();
+});
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#039;'
+  }[c]));
+}
+
 loadCounts();
