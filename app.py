@@ -28,6 +28,11 @@ def max_teams_for_date(booking_date):
 
     return MAX_TEAMS
 
+# 주말(토, 일) 여부를 판별하는 백엔드 함수 추가
+def is_weekend(target_date):
+    # weekday() 기준 5: 토요일, 6: 일요일
+    return target_date.weekday() >= 5
+
 DB_PATH = "billiards.db"
 
 def pg():
@@ -67,6 +72,11 @@ def allowed_date(s):
     try:
         today = date.today()
         target = datetime.strptime(s, "%Y-%m-%d").date()
+        
+        # 주말인 경우 예약 가능 날짜에서 원천 제외
+        if is_weekend(target):
+            return False
+            
         try:
             end = today.replace(year=today.year + 10)
         except ValueError:
@@ -103,7 +113,7 @@ def calendar():
 @app.get("/api/bookings/<booking_date>")
 def date_bookings(booking_date):
     if not allowed_date(booking_date):
-        return jsonify({"error":"올바르지 않은 날짜입니다."}),400
+        return jsonify({"error":"주말이거나 올바르지 않은 날짜입니다."}),400
 
     rows = rows_for_date(booking_date)
 
@@ -130,7 +140,7 @@ def book():
     extra=data.get("members") or []
 
     if not allowed_date(d):
-        return jsonify({"error":"오늘부터 10년 이내의 날짜만 예약할 수 있습니다."}),400
+        return jsonify({"error":"주말에는 예약할 수 없으며, 오늘부터 10년 이내의 날짜만 예약 가능합니다."}),400
 
     if not name:
         return jsonify({"error":"예약자 이름을 입력해주세요."}),400
@@ -149,6 +159,11 @@ def book():
     c=get_db()
 
     try:
+        # 추가 안전 장치: 서버 측에서 한 번 더 주말 여부 체크
+        target_dt = datetime.strptime(d, "%Y-%m-%d").date()
+        if is_weekend(target_dt):
+            return jsonify({"error":"주말에는 예약할 수 없습니다."}),400
+
         # 해당 날짜의 최대 예약 팀 수 결정
         max_teams = max_teams_for_date(d)
 
