@@ -36,14 +36,15 @@ def get_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # Render 환경 변수에서 가져온 문자열의 따옴표 및 개행 문자 이슈를 안전하게 처리
+        # Render 환경변수 텍스트 정제 (양끝 공백/따옴표 제거)
         raw_json = CREDENTIALS_JSON_STR.strip()
-        if raw_json.startswith("'") and raw_json.endswith("'"):
-            raw_json = raw_json[1:-1]
-        elif raw_json.startswith('"') and raw_json.endswith('"'):
-            raw_json = raw_json[1:-1]
+        if (raw_json.startswith("'") and raw_json.endswith("'")) or (raw_json.startswith('"') and raw_json.endswith('"')):
+            raw_json = raw_json[1:-1].strip()
             
-        creds_dict = json.loads(raw_json)
+        # 개행 문자 처리 및 strict=False 적용
+        raw_json = raw_json.replace('\r\n', '\n').replace('\r', '\n')
+        creds_dict = json.loads(raw_json, strict=False)
+        
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
         return client.open_by_url(SPREADSHEET_URL).sheet1
