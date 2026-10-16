@@ -9,6 +9,10 @@ except ImportError:
     psycopg = None
     dict_row = None
 
+# 구글 시트 연동 라이브러리 임포트
+import gspread
+from google.oauth2.service_account import Credentials
+
 app = Flask(__name__, template_folder='.', static_folder='.', static_url_path='')
 app.secret_key = os.environ.get("SECRET_KEY", "local-development-secret-key")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ddyy1016")
@@ -16,6 +20,23 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ddyy1016")
 # 모든 평일 하루 최대 1팀으로 변경, 최대 인원은 4명 유지
 MAX_TEAMS = 1
 MAX_MEMBERS = 4
+
+# 구글 시트 연동 설정 정보
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1f00pdqXWqFAF14QfyKDu3V-3LlV8orSnBhAghaMGJNg/edit"
+CREDENTIALS_FILE = "service_account.json"
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+
+def get_sheet():
+    try:
+        creds = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
+        client = gspread.authorize(creds)
+        return client.open_by_url(SPREADSHEET_URL).sheet1
+    except Exception as e:
+        print(f"구글 시트 연결 오류: {e}")
+        return None
 
 # 주말(토, 일) 여부를 판별하는 백엔드 함수
 def is_weekend(target_date):
@@ -151,6 +172,7 @@ def book():
             return jsonify({"error":"주말에는 예약할 수 없습니다."}),400
 
         max_teams = MAX_TEAMS
+        created_at_str = datetime.now().isoformat(timespec="seconds")
 
         if pg():
             with c.transaction():
@@ -187,7 +209,7 @@ def book():
                     (
                         d, team, name, sid,
                         ",".join(members),
-                        datetime.now().isoformat(timespec="seconds")
+                        created_at_str
                     )
                 ).fetchone()["id"]
 
@@ -223,12 +245,20 @@ def book():
                 (
                     d, team, name, sid,
                     ",".join(members),
-                    datetime.now().isoformat(timespec="seconds")
+                    created_at_str
                 )
             )
 
             c.commit()
             bid = cur.lastrowid
+
+        # 구글 시트에 실시간 추가
+        sheet = get_sheet()
+        if sheet:
+            try:
+                sheet.append_row([str(d), int(team), str(name), str(sid), ", ".join(members), str(created_at_str)])
+            except Exception as e:
+                print(f"구글 시트 행 추가 실패: {e}")
 
         return jsonify({
             "success": True,
@@ -242,7 +272,7 @@ def book():
             }
         })
 
-    except Exception:
+    except Exception as e:
         try:
             c.rollback()
         except:
@@ -345,10 +375,32 @@ def delete_booking(booking_id):
     c = get_db()
 
     try:
+        # 삭제하기 전에 해당 예약 정보(날짜, 팀번호)를 조회
+        q_sel = "SELECT booking_date, team_no FROM bookings WHERE id=%s" if pg() else "SELECT booking_date, team_no FROM bookings WHERE id=?"
+        target_row = c.execute(q_sel, (booking_id,)).fetchone()
+
         q = "DELETE FROM bookings WHERE id=%s" if pg() else "DELETE FROM bookings WHERE id=?"
         cur = c.execute(q, (booking_id,))
         c.commit()
         deleted = cur.rowcount
+
+        # 구글 시트에서도 일치하는 행 삭제 처리
+        if deleted and target_row:
+            sheet = get_sheet()
+            if sheet:
+                try:
+                    b_date = str(target_row["booking_date"])
+                    b_team = str(target_row["team_no"])
+                    
+                    # 모든 레코드를 가져와서 조건에 맞는 행 번호(2행부터 시작)를 찾음
+                    records = sheet.get_all_values()
+                    for idx, row in enumerate(records[1:], start=2):
+                        if len(row) >= 2 and row[0] == b_date and str(row[1]) == b_team:
+                            sheet.delete_rows(idx)
+                            break
+                except Exception as e:
+                    print(f"구글 시트 행 삭제 실패: {e}")
+
     finally:
         c.close()
 
@@ -379,18 +431,4 @@ def admin_backup():
             
         return jsonify({
             "success": True,
-            "backup_date": datetime.now().isoformat(timespec="seconds"),
-            "total_count": len(backup_data),
-            "bookings": backup_data
-        })
-    except Exception as e:
-        return jsonify({"error": f"백업 생성 중 오류가 발생했습니다: {str(e)}"}), 500
-    finally:
-        c.close()
-
-if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT","5000")),
-        debug=False
-    )
+            "backup_date": datetime.now().isoformat
