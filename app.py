@@ -28,7 +28,7 @@ CREDENTIALS_JSON_STR = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 def get_sheet():
     try:
         if not CREDENTIALS_JSON_STR:
-            print("구글 시트 인증 정보(GOOGLE_CREDENTIALS_JSON) 환경 변수가 없습니다.")
+            print("❌ 오류: GOOGLE_CREDENTIALS_JSON 환경 변수가 아예 비어있습니다.")
             return None
         
         SCOPES = [
@@ -36,20 +36,26 @@ def get_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # Render 환경변수 텍스트 정제 (양끝 공백/따옴표 제거)
         raw_json = CREDENTIALS_JSON_STR.strip()
         if (raw_json.startswith("'") and raw_json.endswith("'")) or (raw_json.startswith('"') and raw_json.endswith('"')):
             raw_json = raw_json[1:-1].strip()
             
-        # 개행 문자 처리 및 strict=False 적용
         raw_json = raw_json.replace('\r\n', '\n').replace('\r', '\n')
-        creds_dict = json.loads(raw_json, strict=False)
         
+        # JSON 파싱 테스트
+        try:
+            creds_dict = json.loads(raw_json, strict=False)
+        except Exception as json_err:
+            print(f"❌ JSON 파싱 에러 발생 (환경 변수 값 형식을 확인하세요): {json_err}")
+            return None
+            
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
         return client.open_by_url(SPREADSHEET_URL).sheet1
+        
     except Exception as e:
-        print(f"구글 시트 연결 오류 상세: {e}")
+        import traceback
+        print(f"❌ 구글 시트 연결 중 상세 에러 발생:\n{traceback.format_exc()}")
         return None
 
 # 주말(토, 일) 여부를 판별하는 백엔드 함수
