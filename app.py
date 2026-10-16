@@ -314,4 +314,105 @@ def admin():
     if request.method=="POST":
         if request.form.get("password","")==ADMIN_PASSWORD:
             session["admin"]=True
-            return redirect(url_for("admin
+            return redirect(url_for("admin"))
+
+        return render_template(
+            "admin_login.html",
+            error="비밀번호가 올바르지 않습니다."
+        )
+
+    if not session.get("admin"):
+        return render_template("admin_login.html")
+
+    return render_template("admin.html")
+
+@app.post("/admin/logout")
+def logout():
+    session.pop("admin",None)
+    return redirect(url_for("index"))
+
+@app.get("/api/admin/bookings")
+def admin_bookings():
+    if not session.get("admin"):
+        return jsonify({"error":"관리자 인증이 필요합니다."}),401
+
+    c=get_db()
+
+    try:
+        rows=c.execute(
+            "SELECT * FROM bookings ORDER BY booking_date, team_no"
+        ).fetchall()
+    finally:
+        c.close()
+
+    return jsonify({
+        "bookings":[
+            {
+                "id":r["id"],
+                "date":r["booking_date"],
+                "team_no":r["team_no"],
+                "name":r["name"],
+                "student_id":r["student_id"],
+                "members":r["members"].split(",") if r["members"] else []
+            }
+            for r in rows
+        ]
+    })
+
+@app.delete("/api/admin/bookings/<int:booking_id>")
+def delete_booking(booking_id):
+    if not session.get("admin"):
+        return jsonify({"error":"관리자 인증이 필요합니다."}),401
+
+    c=get_db()
+
+    try:
+        q="DELETE FROM bookings WHERE id=%s" if pg() else "DELETE FROM bookings WHERE id=?"
+        cur=c.execute(q,(booking_id,))
+        c.commit()
+        deleted=cur.rowcount
+    finally:
+        c.close()
+
+    if not deleted:
+        return jsonify({"error":"예약을 찾을 수 없습니다."}),404
+
+    return jsonify({"success":True})
+
+@app.get("/api/admin/backup")
+def admin_backup():
+    if not session.get("admin"):
+        return jsonify({"error": "관리자 인증이 필요합니다."}), 401
+
+    c = get_db()
+    try:
+        rows = c.execute("SELECT * FROM bookings ORDER BY booking_date, team_no").fetchall()
+        
+        backup_data = []
+        for r in rows:
+            backup_data.append({
+                "booking_date": r["booking_date"],
+                "team_no": r["team_no"],
+                "name": r["name"],
+                "student_id": r["student_id"],
+                "members": r["members"],
+                "created_at": r["created_at"] if "created_at" in r else datetime.now().isoformat()
+            })
+            
+        return jsonify({
+            "success": True,
+            "backup_date": datetime.now().isoformat(timespec="seconds"),
+            "total_count": len(backup_data),
+            "bookings": backup_data
+        })
+    except Exception as e:
+        return jsonify({"error": f"백업 생성 중 오류가 발생했습니다: {str(e)}"}), 500
+    finally:
+        c.close()
+
+if __name__=="__main__":
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT","5000")),
+        debug=False
+    )
