@@ -28,7 +28,7 @@ CREDENTIALS_JSON_STR = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 def get_sheet():
     try:
         if not CREDENTIALS_JSON_STR:
-            print("❌ 오류: GOOGLE_CREDENTIALS_JSON 환경 변수가 아예 비어있습니다.")
+            print("❌ 오류: GOOGLE_CREDENTIALS_JSON 환경 변수가 없습니다.")
             return None
         
         SCOPES = [
@@ -41,23 +41,19 @@ def get_sheet():
             raw_json = raw_json[1:-1].strip()
             
         raw_json = raw_json.replace('\r\n', '\n').replace('\r', '\n')
+        creds_dict = json.loads(raw_json, strict=False)
         
-        # JSON 파싱 테스트
-        try:
-            creds_dict = json.loads(raw_json, strict=False)
-        except Exception as json_err:
-            print(f"❌ JSON 파싱 에러 발생 (환경 변수 값 형식을 확인하세요): {json_err}")
-            return None
-            
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
-        return client.open_by_url(SPREADSHEET_URL).sheet1
+        
+        # 🔗 환경 변수 무시하고 방금 공유한 진짜 시트 주소를 직접 연결합니다!
+        target_url = "https://docs.google.com/spreadsheets/d/1fO0pdqXWqFAF14QfyKDu3V-3LIV8orSnBhAghaMGJNg/edit?usp=sharing"
+        return client.open_by_url(target_url).sheet1
         
     except Exception as e:
         import traceback
         print(f"❌ 구글 시트 연결 중 상세 에러 발생:\n{traceback.format_exc()}")
         return None
-
 # 주말(토, 일) 여부를 판별하는 백엔드 함수
 def is_weekend(target_date):
     return target_date.weekday() >= 5
