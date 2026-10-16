@@ -35,12 +35,20 @@ def get_sheet():
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        creds_dict = json.loads(CREDENTIALS_JSON_STR)
+        
+        # Render 환경 변수에서 가져온 문자열의 따옴표 및 개행 문자 이슈를 안전하게 처리
+        raw_json = CREDENTIALS_JSON_STR.strip()
+        if raw_json.startswith("'") and raw_json.endswith("'"):
+            raw_json = raw_json[1:-1]
+        elif raw_json.startswith('"') and raw_json.endswith('"'):
+            raw_json = raw_json[1:-1]
+            
+        creds_dict = json.loads(raw_json)
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
         return client.open_by_url(SPREADSHEET_URL).sheet1
     except Exception as e:
-        print(f"구글 시트 연결 오류: {e}")
+        print(f"구글 시트 연결 오류 상세: {e}")
         return None
 
 # 주말(토, 일) 여부를 판별하는 백엔드 함수
