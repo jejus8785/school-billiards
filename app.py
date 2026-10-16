@@ -19,7 +19,6 @@ MAX_MEMBERS = 4
 
 # 주말(토, 일) 여부를 판별하는 백엔드 함수
 def is_weekend(target_date):
-    # weekday() 기준 5: 토요일, 6: 일요일
     return target_date.weekday() >= 5
 
 DB_PATH = "billiards.db"
@@ -62,7 +61,6 @@ def allowed_date(s):
         today = date.today()
         target = datetime.strptime(s, "%Y-%m-%d").date()
         
-        # 주말인 경우 예약 가능 날짜에서 원천 제외
         if is_weekend(target):
             return False
             
@@ -121,12 +119,12 @@ def date_bookings(booking_date):
 
 @app.post("/api/book")
 def book():
-    data=request.get_json(silent=True) or {}
+    data = request.get_json(silent=True) or {}
 
-    d=(data.get("date") or "").strip()
-    name=(data.get("name") or "").strip()
-    sid=(data.get("student_id") or "").strip()
-    extra=data.get("members") or []
+    d = (data.get("date") or "").strip()
+    name = (data.get("name") or "").strip()
+    sid = (data.get("student_id") or "").strip()
+    extra = data.get("members") or []
 
     if not allowed_date(d):
         return jsonify({"error":"주말에는 예약할 수 없으며, 오늘부터 10년 이내의 날짜만 예약 가능합니다."}),400
@@ -137,15 +135,15 @@ def book():
     if not sid:
         return jsonify({"error":"예약자 학번을 입력해주세요."}),400
 
-    members=[sid]+[str(x).strip() for x in extra if str(x).strip()]
+    members = [sid] + [str(x).strip() for x in extra if str(x).strip()]
 
-    if len(members)>MAX_MEMBERS:
+    if len(members) > MAX_MEMBERS:
         return jsonify({"error":"한 팀은 예약자를 포함해 최대 4명까지 가능합니다."}),400
 
-    if len(set(members))!=len(members):
+    if len(set(members)) != len(members):
         return jsonify({"error":"같은 학번을 중복해서 입력할 수 없습니다."}),400
 
-    c=get_db()
+    c = get_db()
 
     try:
         target_dt = datetime.strptime(d, "%Y-%m-%d").date()
@@ -156,21 +154,20 @@ def book():
 
         if pg():
             with c.transaction():
-
                 c.execute(
                     "SELECT id FROM bookings WHERE booking_date=%s FOR UPDATE",
                     (d,)
                 )
 
-                count=c.execute(
+                count = c.execute(
                     "SELECT COUNT(*) AS count FROM bookings WHERE booking_date=%s",
                     (d,)
                 ).fetchone()["count"]
 
-                if count>=max_teams:
+                if count >= max_teams:
                     return jsonify({"error":"이 날짜는 이미 예약이 마감되었습니다."}),409
 
-                used={
+                used = {
                     r["team_no"]
                     for r in c.execute(
                         "SELECT team_no FROM bookings WHERE booking_date=%s",
@@ -178,27 +175,17 @@ def book():
                     ).fetchall()
                 }
 
-                team=next(
-                    n for n in range(1,max_teams+1)
+                team = next(
+                    n for n in range(1, max_teams + 1)
                     if n not in used
                 )
 
-                bid=c.execute(
+                bid = c.execute(
                     """INSERT INTO bookings(
-                        booking_date,
-                        team_no,
-                        name,
-                        student_id,
-                        members,
-                        created_at
-                    )
-                    VALUES(%s,%s,%s,%s,%s,%s)
-                    RETURNING id""",
+                        booking_date, team_no, name, student_id, members, created_at
+                    ) VALUES(%s,%s,%s,%s,%s,%s) RETURNING id""",
                     (
-                        d,
-                        team,
-                        name,
-                        sid,
+                        d, team, name, sid,
                         ",".join(members),
                         datetime.now().isoformat(timespec="seconds")
                     )
@@ -207,16 +194,16 @@ def book():
         else:
             c.execute("BEGIN IMMEDIATE")
 
-            count=c.execute(
+            count = c.execute(
                 "SELECT COUNT(*) FROM bookings WHERE booking_date=?",
                 (d,)
             ).fetchone()[0]
 
-            if count>=max_teams:
+            if count >= max_teams:
                 c.rollback()
                 return jsonify({"error":"이 날짜는 이미 예약이 마감되었습니다."}),409
 
-            used={
+            used = {
                 r["team_no"]
                 for r in c.execute(
                     "SELECT team_no FROM bookings WHERE booking_date=?",
@@ -224,43 +211,34 @@ def book():
                 ).fetchall()
             }
 
-            team=next(
-                n for n in range(1,max_teams+1)
+            team = next(
+                n for n in range(1, max_teams + 1)
                 if n not in used
             )
 
-            cur=c.execute(
+            cur = c.execute(
                 """INSERT INTO bookings(
-                    booking_date,
-                    team_no,
-                    name,
-                    student_id,
-                    members,
-                    created_at
-                )
-                VALUES(?,?,?,?,?,?)""",
+                    booking_date, team_no, name, student_id, members, created_at
+                ) VALUES(?,?,?,?,?,?)""",
                 (
-                    d,
-                    team,
-                    name,
-                    sid,
+                    d, team, name, sid,
                     ",".join(members),
                     datetime.now().isoformat(timespec="seconds")
                 )
             )
 
             c.commit()
-            bid=cur.lastrowid
+            bid = cur.lastrowid
 
         return jsonify({
-            "success":True,
-            "booking":{
-                "id":bid,
-                "date":d,
-                "team_no":team,
-                "name":name,
-                "student_id":sid,
-                "members":members
+            "success": True,
+            "booking": {
+                "id": bid,
+                "date": d,
+                "team_no": team,
+                "name": name,
+                "student_id": sid,
+                "members": members
             }
         })
 
@@ -271,49 +249,49 @@ def book():
             pass
 
         return jsonify({
-            "error":"예약 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
-        }),500
+            "error": "예약 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        }), 500
 
     finally:
         c.close()
 
 @app.post("/api/lookup")
 def lookup():
-    sid=((request.get_json(silent=True) or {}).get("student_id") or "").strip()
+    sid = ((request.get_json(silent=True) or {}).get("student_id") or "").strip()
 
     if not sid:
-        return jsonify({"error":"학번을 입력해주세요."}),400
+        return jsonify({"error":"학번을 입력해주세요."}), 400
 
-    c=get_db()
+    c = get_db()
 
     try:
-        rows=c.execute(
+        rows = c.execute(
             "SELECT * FROM bookings ORDER BY booking_date, team_no"
         ).fetchall()
     finally:
         c.close()
 
-    result=[]
+    result = []
 
     for r in rows:
-        m=r["members"].split(",") if r["members"] else []
+        m = r["members"].split(",") if r["members"] else []
 
-        if sid==r["student_id"] or sid in m:
+        if sid == r["student_id"] or sid in m:
             result.append({
-                "date":r["booking_date"],
-                "team_no":r["team_no"],
-                "name":r["name"],
-                "student_id":r["student_id"],
-                "members":m
+                "date": r["booking_date"],
+                "team_no": r["team_no"],
+                "name": r["name"],
+                "student_id": r["student_id"],
+                "members": m
             })
 
-    return jsonify({"bookings":result})
+    return jsonify({"bookings": result})
 
-@app.route("/admin",methods=["GET","POST"])
+@app.route("/admin", methods=["GET","POST"])
 def admin():
-    if request.method=="POST":
-        if request.form.get("password","")==ADMIN_PASSWORD:
-            session["admin"]=True
+    if request.method == "POST":
+        if request.form.get("password","") == ADMIN_PASSWORD:
+            session["admin"] = True
             return redirect(url_for("admin"))
 
         return render_template(
@@ -328,32 +306,32 @@ def admin():
 
 @app.post("/admin/logout")
 def logout():
-    session.pop("admin",None)
+    session.pop("admin", None)
     return redirect(url_for("index"))
 
 @app.get("/api/admin/bookings")
 def admin_bookings():
     if not session.get("admin"):
-        return jsonify({"error":"관리자 인증이 필요합니다."}),401
+        return jsonify({"error":"관리자 인증이 필요합니다."}), 401
 
-    c=get_db()
+    c = get_db()
 
     try:
-        rows=c.execute(
+        rows = c.execute(
             "SELECT * FROM bookings ORDER BY booking_date, team_no"
         ).fetchall()
     finally:
         c.close()
 
     return jsonify({
-        "bookings":[
+        "bookings": [
             {
-                "id":r["id"],
-                "date":r["booking_date"],
-                "team_no":r["team_no"],
-                "name":r["name"],
-                "student_id":r["student_id"],
-                "members":r["members"].split(",") if r["members"] else []
+                "id": r["id"],
+                "date": r["booking_date"],
+                "team_no": r["team_no"],
+                "name": r["name"],
+                "student_id": r["student_id"],
+                "members": r["members"].split(",") if r["members"] else []
             }
             for r in rows
         ]
@@ -362,22 +340,22 @@ def admin_bookings():
 @app.delete("/api/admin/bookings/<int:booking_id>")
 def delete_booking(booking_id):
     if not session.get("admin"):
-        return jsonify({"error":"관리자 인증이 필요합니다."}),401
+        return jsonify({"error":"관리자 인증이 필요합니다."}), 401
 
-    c=get_db()
+    c = get_db()
 
     try:
-        q="DELETE FROM bookings WHERE id=%s" if pg() else "DELETE FROM bookings WHERE id=?"
-        cur=c.execute(q,(booking_id,))
+        q = "DELETE FROM bookings WHERE id=%s" if pg() else "DELETE FROM bookings WHERE id=?"
+        cur = c.execute(q, (booking_id,))
         c.commit()
-        deleted=cur.rowcount
+        deleted = cur.rowcount
     finally:
         c.close()
 
     if not deleted:
-        return jsonify({"error":"예약을 찾을 수 없습니다."}),404
+        return jsonify({"error":"예약을 찾을 수 없습니다."}), 404
 
-    return jsonify({"success":True})
+    return jsonify({"success": True})
 
 @app.get("/api/admin/backup")
 def admin_backup():
@@ -410,7 +388,7 @@ def admin_backup():
     finally:
         c.close()
 
-if __name__=="__main__":
+if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=int(os.environ.get("PORT","5000")),
