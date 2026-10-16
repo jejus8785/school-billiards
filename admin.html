@@ -10,6 +10,7 @@
     <p>전체 예약 현황을 확인하고 필요한 예약을 강제로 취소할 수 있습니다.</p>
   </div>
   <div class="admin-actions">
+    <button class="nav-btn primary" onclick="downloadBackup()">예약 데이터 다운로드</button>
     <a class="nav-btn" href="/">학생 화면</a>
     <form method="post" action="/admin/logout"><button class="nav-btn" type="submit">로그아웃</button></form>
   </div>
@@ -28,6 +29,26 @@
     <div id="adminList"></div>
   </div>
 </main>
+<script>
+async function downloadBackup() {
+  const r = await fetch('/api/admin/backup');
+  if(r.status === 401) { location.href = '/admin'; return; }
+  const data = await r.json();
+  if(!r.ok) { alert(data.error || '백업 다운로드에 실패했습니다.'); return; }
+  
+  // JSON 파일로 자동 다운로드 트리거
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  a.download = `billiards_backup_${todayStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
 <script src="admin.js"></script>
 </body>
 </html>
