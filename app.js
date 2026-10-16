@@ -6,18 +6,9 @@ today.setHours(0,0,0,0);
 const maxDate = new Date(today);
 maxDate.setFullYear(maxDate.getFullYear() + 10);
 
-// 2026년 9월 7일 ~ 9월 11일은 하루 1팀만 예약 가능
-const specialStart = '2026-09-07';
-const specialEnd = '2026-09-11';
+const MAX_TEAMS = 1;
 
-function maxTeamsForDate(key) {
-  if (key >= specialStart && key <= specialEnd) {
-    return 1;
-  }
-  return 2;
-}
-
-// 주말(토, 일) 여부를 판별하는 함수 추가
+// 주말(토, 일) 여부를 판별하는 함수
 function isWeekend(d) {
   const day = d.getDay();
   return day === 0 || day === 6; // 0: 일요일, 6: 토요일
@@ -69,27 +60,20 @@ function renderCalendar() {
     const key=iso(d);
     const count=counts[key]||0;
 
-    // 해당 날짜의 최대 예약 팀 수
-    const maxTeams = maxTeamsForDate(key);
-
     const cell=document.createElement('button');
     cell.className='day';
 
     let statusText;
 
-    // 주말이거나 기간 외 날짜일 경우 비활성화 처리
+    // 주말이거나 과거/기간 외 날짜일 경우 비활성화 처리
     if(d<today || d>maxDate || isWeekend(d)){
       cell.disabled=true;
       cell.classList.add('disabled');
-      statusText = isWeekend(d) ? '주말 휴무' : '예약 불가';
+      statusText = isWeekend(d) ? '주말 예약 불가' : '예약 불가';
     }
-    else if(count>=maxTeams){
+    else if(count>=MAX_TEAMS){
       cell.classList.add('full');
       statusText='예약 마감';
-    }
-    else if(count===1){
-      cell.classList.add('one');
-      statusText='1팀 예약';
     }
     else{
       cell.classList.add('available');
@@ -98,8 +82,8 @@ function renderCalendar() {
 
     cell.innerHTML=`<strong>${day}</strong><small>${statusText}</small>`;
 
-    // 주말이 아닐 때만 클릭하여 예약 창 오픈 가능
-    if(d>=today && d<=maxDate && !isWeekend(d) && count<maxTeams){
+    // 평일이고 예약 가능한 경우에만 클릭 가능
+    if(d>=today && d<=maxDate && !isWeekend(d) && count<MAX_TEAMS){
       cell.onclick=()=>openBooking(key);
     }
 
@@ -108,7 +92,6 @@ function renderCalendar() {
 }
 
 async function openBooking(key) {
-  // 클라이언트 측 한 번 더 주말 차단 방어
   const [y, m, d] = key.split('-').map(Number);
   const dateObj = new Date(y, m - 1, d);
   if (isWeekend(dateObj)) {
@@ -119,9 +102,7 @@ async function openBooking(key) {
   const r=await fetch('/api/bookings/'+key);
   const data=await r.json();
 
-  const maxTeams = maxTeamsForDate(key);
-
-  if(data.count>=maxTeams){
+  if(data.count>=MAX_TEAMS){
     await loadCounts();
     return;
   }
@@ -135,7 +116,7 @@ async function openBooking(key) {
   document.getElementById('modalContent').innerHTML=`
     <div class="eyebrow">BOOKING</div>
     <h2>${title} 당구장 예약</h2>
-    <div class="availability-badge">현재 예약: ${data.count} / ${maxTeams}팀</div>
+    <div class="availability-badge">현재 예약: ${data.count} / ${MAX_TEAMS}팀</div>
     <form onsubmit="submitBooking(event,'${key}')">
       <label>예약자 이름 <span>*</span></label>
       <input id="name" required placeholder="예약자 이름">
