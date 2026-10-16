@@ -12,23 +12,12 @@ except ImportError:
 app = Flask(__name__, template_folder='.', static_folder='.', static_url_path='')
 app.secret_key = os.environ.get("SECRET_KEY", "local-development-secret-key")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ddyy1016")
-MAX_TEAMS = 2
+
+# 모든 평일 하루 최대 1팀으로 변경, 최대 인원은 4명 유지
+MAX_TEAMS = 1
 MAX_MEMBERS = 4
 
-# 2026년 9월 7일 ~ 9월 11일은 하루 1팀만 예약 가능
-SPECIAL_SINGLE_TEAM_START = date(2026, 9, 7)
-SPECIAL_SINGLE_TEAM_END = date(2026, 9, 11)
-
-def max_teams_for_date(booking_date):
-    if isinstance(booking_date, str):
-        booking_date = datetime.strptime(booking_date, "%Y-%m-%d").date()
-
-    if SPECIAL_SINGLE_TEAM_START <= booking_date <= SPECIAL_SINGLE_TEAM_END:
-        return 1
-
-    return MAX_TEAMS
-
-# 주말(토, 일) 여부를 판별하는 백엔드 함수 추가
+# 주말(토, 일) 여부를 판별하는 백엔드 함수
 def is_weekend(target_date):
     # weekday() 기준 5: 토요일, 6: 일요일
     return target_date.weekday() >= 5
@@ -159,13 +148,12 @@ def book():
     c=get_db()
 
     try:
-        # 추가 안전 장치: 서버 측에서 한 번 더 주말 여부 체크
+        # 서버 측 주말 여부 재확인
         target_dt = datetime.strptime(d, "%Y-%m-%d").date()
         if is_weekend(target_dt):
             return jsonify({"error":"주말에는 예약할 수 없습니다."}),400
 
-        # 해당 날짜의 최대 예약 팀 수 결정
-        max_teams = max_teams_for_date(d)
+        max_teams = MAX_TEAMS # 항상 1팀
 
         if pg():
             with c.transaction():
@@ -181,12 +169,7 @@ def book():
                 ).fetchone()["count"]
 
                 if count>=max_teams:
-                    if max_teams == 1:
-                        message="이 날짜는 1팀만 예약할 수 있어 이미 예약이 마감되었습니다."
-                    else:
-                        message="이 날짜는 이미 2팀이 예약되어 예약이 마감되었습니다."
-
-                    return jsonify({"error":message}),409
+                    return jsonify({"error":"이 날짜는 이미 예약이 마감되었습니다."}),409
 
                 used={
                     r["team_no"]
@@ -232,13 +215,7 @@ def book():
 
             if count>=max_teams:
                 c.rollback()
-
-                if max_teams == 1:
-                    message="이 날짜는 1팀만 예약할 수 있어 이미 예약이 마감되었습니다."
-                else:
-                    message="이 날짜는 이미 2팀이 예약되어 예약이 마감되었습니다."
-
-                return jsonify({"error":message}),409
+                return jsonify({"error":"이 날짜는 이미 예약이 마감되었습니다."}),409
 
             used={
                 r["team_no"]
