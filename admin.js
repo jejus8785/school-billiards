@@ -8,8 +8,9 @@ async function loadAdmin(){
 function updateStats(){
   document.getElementById('total').textContent=bookings.length;
   document.getElementById('days').textContent=new Set(bookings.map(b=>b.date)).size;
-  document.getElementById('remaining').textContent=bookings.length===0 ? 0 :
-    (new Set(bookings.map(b=>b.date)).size*2-bookings.length);
+  // 1팀 제한에 맞게 통계 계산 변경 (예약된 날짜 수와 전체 예약 수가 같으면 남은 팀 수 0)
+  const uniqueDaysCount = new Set(bookings.map(b=>b.date)).size;
+  document.getElementById('remaining').textContent = Math.max(0, uniqueDaysCount - bookings.length);
 }
 function renderAdmin(){
   const q=document.getElementById('adminSearch').value.trim().toLowerCase();
